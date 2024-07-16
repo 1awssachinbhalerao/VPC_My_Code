@@ -1,0 +1,158 @@
+vpc/
+  ├── main.tf
+  ├── outputs.tf
+  ├── variables.tf
+---------------------------------------------
+
+main.tf
+
+resource "aws_vpc" "custom_vpc" {
+  cidr_block = var.vpc_cidr
+  enable_dns_support = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "${var.name_prefix}-vpc"
+  }
+}
+
+resource "aws_subnet" "public_subnet" {
+  count = 2
+
+  vpc_id = aws_vpc.custom_vpc.id
+  cidr_block = element(var.public_subnet_cidrs, count.index)
+  map_public_ip_on_launch = true
+  availability_zone = element(var.availability_zones, count.index)
+
+  tags = {
+    Name = "${var.name_prefix}-public-subnet-${count.index + 1}"
+  }
+}
+
+resource "aws_subnet" "private_subnet" {
+  count = 2
+
+  vpc_id = aws_vpc.custom_vpc.id
+  cidr_block = element(var.private_subnet_cidrs, count.index)
+  availability_zone = element(var.availability_zones, count.index)
+
+  tags = {
+    Name = "${var.name_prefix}-private-subnet-${count.index + 1}"
+  }
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.custom_vpc.id
+
+  tags = {
+    Name = "${var.name_prefix}-igw"
+  }
+}
+
+resource "aws_route_table" "public_rt" {
+  vpc_id = aws_vpc.custom_vpc.id
+
+  tags = {
+    Name = "${var.name_prefix}-public-rt"
+  }
+}
+
+resource "aws_route" "public_route" {
+  route_table_id = aws_route_table.public_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id = aws_internet_gateway.igw.id
+}
+
+resource "aws_route_table_association" "public_rt_assoc" {
+  count = 2
+
+  subnet_id = aws_subnet.public_subnet[count.index].id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+resource "aws_eip" "nat_eip" {
+  count = 2
+  vpc = true
+}
+
+resource "aws_nat_gateway" "nat_gw" {
+  count = 2
+
+  allocation_id = aws_eip.nat_eip[count.index].id
+  subnet_id = element(aws_subnet.public_subnet[*].id, count.index)
+
+  tags = {
+    Name = "${var.name_prefix}-nat-gw-${count.index + 1}"
+  }
+}
+
+resource "aws_route_table" "private_rt" {
+  count = 2
+
+  vpc_id = aws_vpc.custom_vpc.id
+
+  tags = {
+    Name = "${var.name_prefix}-private-rt-${count.index + 1}"
+  }
+}
+
+resource "aws_route" "private_route" {
+  count = 2
+
+  route_table_id = aws_route_table.private_rt[count.index].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id = element(aws_nat_gateway.nat_gw[*].id, count.index)
+}
+
+resource "aws_route_table_association" "private_rt_assoc" {
+  count = 2
+
+  subnet_id = aws_subnet.private_subnet[count.index].id
+  route_table_id = aws_route_table.private_rt[count.index].id
+}
+
+#variables.tf
+variable "name_prefix" {
+  description = "Prefix for resource names"
+  type = string
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for the VPC"
+  type = string
+}
+
+variable "public_subnet_cidrs" {
+  description = "CIDR blocks for public subnets"
+  type = list(string)
+}
+
+variable "private_subnet_cidrs" {
+  description = "CIDR blocks for private subnets"
+  type = list(string)
+}
+
+variable "availability_zones" {
+  description = "Availability zones to deploy the subnets"
+  type = list(string)
+}
+
+#outputs.tf
+
+output "vpc_id" {
+  value = aws_vpc.custom_vpc.id
+}
+
+output "public_subnet_ids" {
+  value = aws_subnet.public_subnet[*].id
+}
+
+output "private_subnet_ids" {
+  value = aws_subnet.private_subnet[*].id
+}
+
+output "nat_gateway_ids" {
+  value = aws_nat_gateway.nat_gw[*].id
+}
+
+
