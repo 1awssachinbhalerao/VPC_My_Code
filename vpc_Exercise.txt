@@ -1046,3 +1046,70 @@ output "web_alb_dns" {
 /*
 This configuration will create a VPC with public subnets, security groups for the web servers and the ALB, a launch configuration for the web servers, an autoscaling group to manage the web servers, and an application load balancer to distribute traffic. The ALB will check the health of the instances before forwarding requests.
 */
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+provider "aws" {
+  region = "us-east-1"
+}
+
+module "iam_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-assumable-role"
+  version = "~> 5.0"
+
+  create_role = true
+  role_name   = var.role_name
+  description = var.role_description
+
+  policy_arns = [aws_iam_policy.start_stop_rds_instance.arn]
+
+  oidc_providers = [
+    {
+      provider_url = "https://example.com"
+      client_id    = var.idp_name
+    }
+  ]
+
+  tags = {
+    Terraform = "true"
+    Environment = "SIT"
+  }
+}
+
+resource "aws_iam_policy" "start_stop_rds_instance" {
+  name        = "StartStopRDSInstancePolicy"
+  description = "Policy to start and stop RDS instances"
+  policy      = data.aws_iam_policy_document.start_stop_rds_instance.json
+}
+
+data "aws_iam_policy_document" "start_stop_rds_instance" {
+  statement {
+    actions = [
+      "rds:StartDBInstance",
+      "rds:StopDBInstance"
+    ]
+    resources = ["*"]
+  }
+}
+
+variable "idp_name" {
+  description = "IDP name"
+  type        = string
+  default     = "idp1"
+}
+
+variable "role_name" {
+  description = "Name of the IAM Role"
+  type        = string
+  default     = "ADFS-SIT-Ops"
+}
+
+variable "role_description" {
+  description = "Description of the IAM Role"
+  type        = string
+  default     = "Start and Stop RDS Instance"
+}
+
