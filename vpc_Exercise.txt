@@ -1180,3 +1180,26 @@ variable "role_description" {
   default     = "Start and Stop Aurora PostgreSQL Cluster"
 }
 
+#############################################################################################################
+
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "rds:StartDBCluster",
+                "rds:StopDBCluster",
+                "rds:ListTagsForResource",
+                "rds:DownloadDBLogFilePortion",
+                "rds:DescribeRecommendationGroups",
+                "rds:DownloadCompleteDBLogFile",
+                "rds:StopDBInstance",
+                "rds:DescribeRecommendations",
+                "rds:StartDBInstance"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
