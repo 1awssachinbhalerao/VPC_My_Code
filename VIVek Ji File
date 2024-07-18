@@ -1,0 +1,109 @@
+To update the names of the private subnets and their route tables as specified, you can leverage the module's variables and outputs to set the appropriate names without modifying the module's main files. You can achieve this by using the tags argument in the module definition and the resources outside of the module.
+
+Here's how you can do it in your vpc.tf file:
+
+1. Define the variables for subnet names and route table names in your variables.tf file:
+
+variable "private_subnet_names" {
+  type    = list(string)
+  default = ["mmd.sit.ew1.vpc01-r-subnet01", "mmd.sit.ew1.vpc01-r-subnet02", "mmd.sit.ew1.vpc01-r-subnet03"]
+}
+
+variable "private_route_table_names" {
+  type    = list(string)
+  default = ["mmd-sit-ew1-vpc01-r-rt01", "mmd-sit-ew1-vpc01-r-rt02", "mmd-sit-ew1-vpc01-r-rt03"]
+}
+
+
+___________________________________________________________________________________________________
+
+2. Pass these variables to the tags argument in the module definition in your vpc.tf file:
+
+provider "aws" {
+  region = var.region
+}
+
+module "vpc" {
+  source = "./modules/vpc"
+  # version = "5.0.0"  # specify the latest version
+
+  name = "${var.project}-${var.environment}-${var.reg}-vpc01"
+  cidr = var.vpc_cidr
+
+  azs             = var.private_subnet_azs
+  private_subnets = var.private_subnets
+
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Terraform   = "true"
+    Environment = var.environment
+  }
+}
+
+
+___________________________________________________________________________________________________
+
+
+3. Define the resources for the subnets and route tables with the desired names in your vpc.tf file:
+
+
+resource "aws_subnet" "private_subnets" {
+  count = length(var.private_subnets)
+
+  vpc_id            = module.vpc.vpc_id
+  cidr_block        = element(var.private_subnets, count.index)
+  availability_zone = element(var.private_subnet_azs, count.index)
+
+  tags = {
+    Name        = element(var.private_subnet_names, count.index)
+    Environment = var.environment
+  }
+}
+
+resource "aws_route_table" "private_subnet_route_tables" {
+  count = length(var.private_subnets)
+
+  vpc_id = module.vpc.vpc_id
+
+  tags = {
+    Name        = element(var.private_route_table_names, count.index)
+    Environment = var.environment
+  }
+}
+
+resource "aws_route_table_association" "private_subnet_route_table_associations" {
+  count = length(var.private_subnets)
+
+  subnet_id      = aws_subnet.private_subnets[count.index].id
+  route_table_id = aws_route_table.private_subnet_route_tables[count.index].id
+}
+
+
+___________________________________________________________________________________________________
+
+
+4. Update the outputs.tf file to expose the subnet and route table IDs if needed:
+
+output "private_subnet_ids" {
+  description = "The IDs of the private subnets"
+  value       = aws_subnet.private_subnets[*].id
+}
+
+output "private_route_table_ids" {
+  description = "The IDs of the private route tables"
+  value       = aws_route_table.private_subnet_route_tables[*].id
+}
+
+
+_____________________________________________________________________________________________________
+
+With this setup, you avoid modifying the module's main.tf file and manage the subnet and route table naming within your vpc.tf configuration file. The provided configuration will create the private subnets and their associated route tables with the specified names.
+
+
+
+
+
+
+
