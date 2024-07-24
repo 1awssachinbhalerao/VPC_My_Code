@@ -19,3 +19,29 @@ resource "aws_route" "non_routable_routes" {
     }
   }
 }
+
+
++++++++++++++++++++++++++++++++++
+
+
+locals {
+  route_tables = aws_route_table.non_routable_tables
+  destinations = [
+    var.destination_apigee_cidr,
+    var.destination_apigee_cidr1,
+    var.destination_dp_cidr,
+    var.destination_dp_cidr1,
+    module.vpc.vpc_cidr_block
+  ]
+}
+
+resource "aws_route" "non_routable_routes" {
+  for_each = {
+    for idx, route_table in local.route_tables : "${idx}-${route_table.id}" => route_table.id
+  }
+
+  count = length(local.destinations)
+
+  route_table_id         = each.value
+  destination_cidr_block = local.destinations[count.index]
+}
