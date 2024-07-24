@@ -109,3 +109,36 @@ resource "aws_route" "non_routable_routes" {
     }
   }
 }
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+locals {
+  route_tables = aws_route_table.non_routable_tables[*].id
+  destinations = [
+    var.destination_apigee_cidr,
+    var.destination_apigee_cidr1,
+    var.destination_dp_cidr,
+    var.destination_dp_cidr1,
+    module.vpc.vpc_cidr_block
+  ]
+}
+
+# Create a map for each route table and destination combination
+locals {
+  routes = flatten([
+    for rt_id in local.route_tables : [
+      for dest in local.destinations : {
+        route_table_id = rt_id
+        destination_cidr_block = dest
+      }
+    ]
+  ])
+}
+
+resource "aws_route" "non_routable_routes" {
+  for_each = { for i, route in local.routes : "${route.route_table_id}-${i}" => route }
+
+  route_table_id         = each.value.route_table_id
+  destination_cidr_block = each.value.destination_cidr_block
+}
